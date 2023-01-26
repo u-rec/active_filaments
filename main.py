@@ -1,26 +1,27 @@
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 import numpy as np
+import os
 
 
 class G:
-    N = 30
-    R = 5E-1
+    N = 100
+    R = 0.5
     ks = 1E2
     k = 1E2
     l0 = 1.0
     a = 1.0
-    dt = 5E-3
+    dt = 5E-5
     L_pol = (N-1) * l0
-    ksi_p = 0.1
-    Pe = 1E-3
+    ksi_p = 1
+    Pe = 1e5
     fp = Pe * a / (L_pol**2)
     kappa = ksi_p * a * L_pol
 
 
 class Filament:
     def __init__(self):
-        self.particles = np.matrix([np.arange(0, G.N * 2, 2), np.zeros(G.N)]).T
+        self.particles = np.matrix([np.arange(G.N), np.zeros(G.N)]).T
 
     def x(self):
         return self.particles.T[0]
@@ -131,29 +132,42 @@ class Filament:
 
         force_x = np.zeros((G.N, G.N))
         force_y = np.zeros((G.N, G.N))
-        np.putmask(force_x, near, - G.k * (diff_x - directed_r[0]))
-        np.putmask(force_y, near, - G.k * (diff_y - directed_r[1]))
+        np.putmask(force_x, near, G.k * (diff_x - directed_r[0]))
+        np.putmask(force_y, near, G.k * (diff_y - directed_r[1]))
         return np.asarray([force_x.sum(1), force_y.sum(1)]).T
 
     def active_force(self):
-        return G.fp * self.deshift(np.asarray(self.vectors()))
+        a = G.fp * self.deshift(np.asarray(self.vectors()))
+        return a
 
     def make_step(self):
-        all_force = self.bond_force() + self.angle_force() + self.ev_force() + self.active_force()
+        bond = self.bond_force()
+        angle = self.angle_force()
+        ev = self.ev_force()
+        active = self.active_force()
+        all_force = bond + angle + ev + active
         all_force *= G.dt
-        all_force += np.sqrt(G.a * G.dt) * np.random.normal(size=(G.N, 2))
+        all_force = all_force + np.sqrt(G.a * G.dt) * np.random.normal(size=(G.N, 2))
         self.particles += all_force
         return self.particles
 
 
 
 
-f = Filament()
-f.particles[1,1] = 1
+dr = 'figures'
+for f in os.listdir(dr):
+    os.remove(os.path.join(dr, f))
 
-for i in range(1000):
+f = Filament()
+
+for i in range(10000):
     table = np.asarray(f.make_step()).T
-    plt.plot(table[0], table[1])
+    if i % 10 != 0:
+        continue
+    plt.plot(table[0], table[1], 'go-')
+    up = table[1].max()
+    down = table[1].min()
+    plt.ylim((down - 1, up + 1))
     plt.savefig(f"figures/{i:05d}.png")
     plt.close()
 
